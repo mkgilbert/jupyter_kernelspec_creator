@@ -13,23 +13,35 @@ from subprocess import Popen
 from string import Template
 
 
-def run_cmd(cmd, args=None):
+def run_cmd(cmd, args=None, tries=0):
     """
     Runs a Bash command and gets the output
     :param cmd: Bash command-line program
     :param args: Arguments to pass into the "cmd"
+    :param tries: number of times the command has been tried (max is 5)
     :return: returns output of calling the cmd
     """
-    p = Popen(cmd, shell=True, stdin=sp.PIPE, stdout=sp.PIPE)
-
+    # setup command to be run
+    p = Popen(cmd, shell=True, stdin=sp.PIPE, stdout=sp.PIPE, stderr=sp.PIPE)
+    # check current number of tries
+    if tries >= 5:
+        print("Max tries exceeded.")
+        return -1
+    # tries was less than 5, so run the command either with args or without
+    print("Running command '%s'" % cmd)
     if args is not None:
         out = p.communicate(args.encode())
     else:
         out = p.communicate()
-    if out[1] is not None:
-        return out[1] # error was returned by shell
-    out = out[0].decode().strip()
-    return out
+
+    # out[1] is a string of the error output, if any. If errors, run again (until max tries exceeded)
+    if 'Error' in out[1] or 'error' in out[1]:
+        print("Try %d: Command returned error: '%s'" % (tries+1, out[1].decode()))
+        return run_cmd(cmd, args, tries+1)  # error was returned by shell
+    else:
+        # everything ran just fine
+        out = out[0].decode().strip()
+        return out
 
 
 class JupyterUser:
@@ -74,14 +86,18 @@ class JupyterUser:
 
             if "jupyter-kernelspec" in bin_list:
                 print("jupyter-kernelspec found. Skipping ipykernel install.")
+                self.conda_envs.append((env, os.path.join(bin_dir, 'python')))
             else:  # they didn't have jupyter-kernelspec, so need to install ipykernel
                 # create a tuple of the env name and the binary executable
                 # now we need to install "ipykernel" into this env
                 print("jupyter-kernelspec not found. Installing ipykernel...")
-                self.conda_install('ipykernel', env)
-
-            # populate conda_envs with tuple of; (env-name, binary/path/of/python)
-            self.conda_envs.append((env, os.path.join(bin_dir, 'python')))
+                result = self.conda_install('ipykernel', env)
+                if result == -1:
+                    # conda install failed for some reason, so don't add this one to the list
+                    print("Conda install of 'ipykernel' in '%s' failed! Skipping..." % env)
+                else:
+                    # Conda install succeeded, populate conda_envs with tuple of; (env-name, binary/path/of/python)
+                    self.conda_envs.append((env, os.path.join(bin_dir, 'python')))
 
         return True
 
@@ -95,7 +111,7 @@ class JupyterUser:
         print("Attempting to install module '%s' in env '%s'..." % (module, env_name))
         bash_script = Template('''#!/bin/bash\nsource activate $env\nconda install --yes $module\nexit\n''')
         out = run_cmd('/bin/sh', bash_script.substitute(dict(env=env_name, module=module)))
-        print(out)
+        return out
 
     def create_kernelspec(self, name, dir):
         """
@@ -158,8 +174,8 @@ if __name__ == '__main__':
 
     print(u)
 
-    result = u.populate_conda_envs()
-    if result:
+    did_populate = u.populate_conda_envs()
+    if did_populate:
         u.install_kernelspecs()
     print("Exiting jupyter_kernelspec_creator")
 

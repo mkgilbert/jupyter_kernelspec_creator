@@ -9,6 +9,7 @@ import os
 import json
 import subprocess as sp
 import shutil
+import errno
 from subprocess import Popen
 from string import Template
 
@@ -136,11 +137,12 @@ class JupyterUser:
         """
         print("Checking for local kernel directory...")
         try:
-            if not os.path.exists(self.kernel_dir):
-                os.mkdir(self.kernel_dir0)
-        except Exception as e:
-            print("Error: couldn't create local kernel directory")
-            print(e)
+            os.makedirs(self.kernel_dir)
+        except OSError as e:
+            if e.errno == errno.EEXIST and os.path.isdir(self.kernel_dir):
+                pass
+            else:
+                print("Error: couldn't create directory %s" % self.kernel_dir)
 
         print("Removing existing auto generated kernels...")
         for dir in os.listdir(self.kernel_dir):

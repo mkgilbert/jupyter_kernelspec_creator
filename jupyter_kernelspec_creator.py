@@ -35,7 +35,7 @@ def run_cmd(cmd, args=None, tries=0):
         out = p.communicate()
 
     # out[1] is a string of the error output, if any. If errors, run again (until max tries exceeded)
-    if 'Error' in out[1] or 'error' in out[1]:
+    if 'Error' in out[1].decode() or 'error' in out[1].decode():
         print("Try %d: Command returned error: '%s'" % (tries+1, out[1].decode()))
         return run_cmd(cmd, args, tries+1)  # error was returned by shell
     else:

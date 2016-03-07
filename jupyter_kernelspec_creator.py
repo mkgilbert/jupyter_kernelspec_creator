@@ -134,6 +134,13 @@ class JupyterUser:
         and re-installs current kernels
         :return: nothing
         """
+        print("Checking for local kernel directory...")
+        try:
+            if not os.path.exists(self.kernel_dir):
+                os.mkdir(self.kernel_dir0)
+        except Exception as e:
+            print("Error: couldn't create local kernel directory")
+            print(e)
 
         print("Removing existing auto generated kernels...")
         for dir in os.listdir(self.kernel_dir):
